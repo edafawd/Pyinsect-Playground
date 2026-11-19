@@ -462,7 +462,7 @@ async function showResults() {
     if (list.some(p => p.ai !== "ai" && p.step !== "tree" && p.verdict === "ok")) {
       const bars = alertBars(); bars.classList.add("calm"); note.append(bars);
     }
-    note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! Your report still helps: it shows where trees were checked."), $("resultsActions"));
+    note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! There's nothing to report."), $("resultsActions"));
   }
   body.append(note);
 
@@ -471,9 +471,22 @@ async function showResults() {
     resultsActions();
     return;
   }
+  // Nothing invasive: nothing to send, so no Send report button. Done goes home (native bugs still count in the game).
+  if (!(found.eab || found.damage || found.signs || found.others.length)) {
+    resultsActions(["Done", "primary", () => { closeResults(); resetDetect(true); go("home"); countInGame(list); }]);
+    return;
+  }
   $("resultsArea").hidden = false;
-  if (found.eab || found.damage || found.signs || found.others.length) invasiveAlarm(true);   // red glow + siren; the words are in the box above (assets/app.js)
+  invasiveAlarm(true);   // red glow + siren; the words are in the box above (assets/app.js)
   resultsActions(["Send report", "primary", () => sendReport(found)]);
+}
+
+// Bugs from the bug step count in the Innvadex game too (assets/game.js)
+function countInGame(list) {
+  for (const p of list.filter(p => p.step === "bug" && p.ai !== "ai" && p.verdict === "ok")) {
+    const s = p.top3[0].species;
+    if (INVASIVE.has(s)) window.Innvadex?.encounter(s, p.url); else window.Innvadex?.native(s, p.top3[0].confidence);
+  }
 }
 
 // One report with every photo (except AI-made ones), then the map
@@ -502,16 +515,11 @@ async function sendReport(found) {
   body.append(title, el("p", null, ok
     ? "Thank you for helping protect Oregon's trees! We pass reports on to the experts."
     : "This phone is out of storage space, so the report couldn't be saved. Try deleting some old photos or reports."));
-  // Bugs from the bug step count in the Innvadex game too (assets/game.js)
-  const bugs = list.filter(p => p.step === "bug" && p.verdict === "ok");
   resultsActions(["See the map", "primary", () => {
     closeResults();
     resetDetect(true);
     go("map");
-    for (const p of bugs) {
-      const s = p.top3[0].species;
-      if (INVASIVE.has(s)) window.Innvadex?.encounter(s, p.url); else window.Innvadex?.native(s, p.top3[0].confidence);
-    }
+    countInGame(list);
   }]);
 }
 
